@@ -139,9 +139,54 @@ echo -e "║        НАСТРОЙКА ПАРАМЕТРОВ TELEGRAM БОТА   
 echo -e "╚════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-read -p "Введите Telegram Bot Token (от @BotFather): " BOT_TOKEN
-read -p "Введите Spotify Client ID (из Spotify Developer Dashboard): " SPOTIFY_CLIENT_ID
-read -p "Введите Spotify Client Secret (из Spotify Developer Dashboard): " SPOTIFY_CLIENT_SECRET
+# Исправленное сохранение переменных с экранированием ввода
+echo -n "Введите Telegram Bot Token (от @BotFather): "
+read BOT_TOKEN
+echo
+
+echo -n "Введите Spotify Client ID (из Spotify Developer Dashboard): "
+read SPOTIFY_CLIENT_ID
+echo
+
+echo -n "Введите Spotify Client Secret (из Spotify Developer Dashboard): "
+read SPOTIFY_CLIENT_SECRET
+echo
+
+# Проверка, что переменные не пустые
+if [ -z "$BOT_TOKEN" ]; then
+    print_error "Не указан BOT_TOKEN. Установка прервана."
+    exit 1
+fi
+
+if [ -z "$SPOTIFY_CLIENT_ID" ]; then
+    print_warning "Не указан SPOTIFY_CLIENT_ID. Функциональность Spotify будет недоступна."
+fi
+
+if [ -z "$SPOTIFY_CLIENT_SECRET" ]; then
+    print_warning "Не указан SPOTIFY_CLIENT_SECRET. Функциональность Spotify будет недоступна."
+fi
+
+# Вывод информации для проверки
+print_message "Проверка введенных данных:"
+echo -e "BOT_TOKEN: ${YELLOW}${BOT_TOKEN:0:5}...${NC} (показаны первые 5 символов)"
+if [ -n "$SPOTIFY_CLIENT_ID" ]; then
+    echo -e "SPOTIFY_CLIENT_ID: ${YELLOW}${SPOTIFY_CLIENT_ID:0:5}...${NC} (показаны первые 5 символов)"
+else
+    echo -e "SPOTIFY_CLIENT_ID: ${RED}не указан${NC}"
+fi
+if [ -n "$SPOTIFY_CLIENT_SECRET" ]; then
+    echo -e "SPOTIFY_CLIENT_SECRET: ${YELLOW}${SPOTIFY_CLIENT_SECRET:0:5}...${NC} (показаны первые 5 символов)"
+else
+    echo -e "SPOTIFY_CLIENT_SECRET: ${RED}не указан${NC}"
+fi
+
+# Подтверждение продолжения установки
+read -p "Продолжить установку с этими параметрами? (y/n): " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    print_error "Установка прервана пользователем."
+    exit 1
+fi
 
 USERNAME=$(logname 2>/dev/null || echo $SUDO_USER || echo $USER)
 USERGROUP=$(id -gn $USERNAME)
@@ -184,10 +229,18 @@ pip install -r requirements.txt
 # Создание файла окружения
 print_message "Создание файла окружения (.env)..."
 cat > "$BOT_DIR/.env" << EOF
-BOT_TOKEN=$BOT_TOKEN
-SPOTIFY_CLIENT_ID=$SPOTIFY_CLIENT_ID
-SPOTIFY_CLIENT_SECRET=$SPOTIFY_CLIENT_SECRET
+BOT_TOKEN=${BOT_TOKEN}
+SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
 EOF
+
+# Проверка создания файла
+if [ -f "$BOT_DIR/.env" ]; then
+    print_success "Файл .env успешно создан."
+else
+    print_error "Не удалось создать файл .env."
+    exit 1
+fi
 
 # Создание systemd сервиса
 print_message "Создание systemd сервиса..."
