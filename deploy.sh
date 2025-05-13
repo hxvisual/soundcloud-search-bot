@@ -82,6 +82,14 @@ if ! command -v python3 &> /dev/null; then
         print_error "Невозможно определить метод установки Python для вашей ОС"
         exit 1
     fi
+else
+    # Проверка и установка python3-venv
+    if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
+        if ! dpkg -l | grep -q python3-venv; then
+            print_warning "Пакет python3-venv не установлен. Установка..."
+            apt-get update && apt-get install -y python3-venv
+        fi
+    fi
 fi
 
 # Проверка и установка Git
@@ -139,16 +147,16 @@ echo -e "║        НАСТРОЙКА ПАРАМЕТРОВ TELEGRAM БОТА   
 echo -e "╚════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-# Исправленное сохранение переменных с экранированием ввода
-echo -n "Введите Telegram Bot Token (от @BotFather): "
+# Исправленное сохранение переменных
+printf "Введите Telegram Bot Token (от @BotFather): "
 read BOT_TOKEN
 echo
 
-echo -n "Введите Spotify Client ID (из Spotify Developer Dashboard): "
+printf "Введите Spotify Client ID (из Spotify Developer Dashboard): "
 read SPOTIFY_CLIENT_ID
 echo
 
-echo -n "Введите Spotify Client Secret (из Spotify Developer Dashboard): "
+printf "Введите Spotify Client Secret (из Spotify Developer Dashboard): "
 read SPOTIFY_CLIENT_SECRET
 echo
 
@@ -168,20 +176,31 @@ fi
 
 # Вывод информации для проверки
 print_message "Проверка введенных данных:"
-echo -e "BOT_TOKEN: ${YELLOW}${BOT_TOKEN:0:5}...${NC} (показаны первые 5 символов)"
-if [ -n "$SPOTIFY_CLIENT_ID" ]; then
-    echo -e "SPOTIFY_CLIENT_ID: ${YELLOW}${SPOTIFY_CLIENT_ID:0:5}...${NC} (показаны первые 5 символов)"
+# Безопасно показать первые 5 символов токенов (если они есть)
+if [ -n "$BOT_TOKEN" ] && [ ${#BOT_TOKEN} -ge 5 ]; then
+    TOKEN_PREVIEW="${BOT_TOKEN:0:5}"
+    echo -e "BOT_TOKEN: ${YELLOW}${TOKEN_PREVIEW}...${NC} (показаны первые 5 символов)"
 else
-    echo -e "SPOTIFY_CLIENT_ID: ${RED}не указан${NC}"
+    echo -e "BOT_TOKEN: ${YELLOW}[скрыт]${NC}"
 fi
-if [ -n "$SPOTIFY_CLIENT_SECRET" ]; then
-    echo -e "SPOTIFY_CLIENT_SECRET: ${YELLOW}${SPOTIFY_CLIENT_SECRET:0:5}...${NC} (показаны первые 5 символов)"
+
+if [ -n "$SPOTIFY_CLIENT_ID" ] && [ ${#SPOTIFY_CLIENT_ID} -ge 5 ]; then
+    ID_PREVIEW="${SPOTIFY_CLIENT_ID:0:5}"
+    echo -e "SPOTIFY_CLIENT_ID: ${YELLOW}${ID_PREVIEW}...${NC} (показаны первые 5 символов)"
 else
-    echo -e "SPOTIFY_CLIENT_SECRET: ${RED}не указан${NC}"
+    echo -e "SPOTIFY_CLIENT_ID: ${RED}не указан или слишком короткий${NC}"
+fi
+
+if [ -n "$SPOTIFY_CLIENT_SECRET" ] && [ ${#SPOTIFY_CLIENT_SECRET} -ge 5 ]; then
+    SECRET_PREVIEW="${SPOTIFY_CLIENT_SECRET:0:5}"
+    echo -e "SPOTIFY_CLIENT_SECRET: ${YELLOW}${SECRET_PREVIEW}...${NC} (показаны первые 5 символов)"
+else
+    echo -e "SPOTIFY_CLIENT_SECRET: ${RED}не указан или слишком короткий${NC}"
 fi
 
 # Подтверждение продолжения установки
-read -p "Продолжить установку с этими параметрами? (y/n): " -n 1 -r
+printf "Продолжить установку с этими параметрами? (y/n): "
+read -r REPLY
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     print_error "Установка прервана пользователем."
@@ -221,10 +240,42 @@ chown -R "$USERNAME":"$USERGROUP" "$BOT_DIR" "$BARE_DIR"
 # Создание виртуального окружения и установка зависимостей
 print_message "Создание виртуального окружения и установка зависимостей..."
 cd "$BOT_DIR"
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+
+# Проверка наличия python3-venv
+if ! command -v python3 -m venv &> /dev/null; then
+    print_warning "Модуль venv не установлен. Установка..."
+    if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
+        apt-get update && apt-get install -y python3-venv
+    elif [[ "$OS" == *"CentOS"* ]] || [[ "$OS" == *"RedHat"* ]]; then
+        yum install -y python3-venv
+    elif [[ "$OS" == *"Arch"* ]]; then
+        pacman -S --noconfirm python-virtualenv
+    else
+        print_error "Не удалось установить python3-venv. Пожалуйста, установите его вручную."
+        exit 1
+    fi
+fi
+
+# Создание виртуального окружения
+python3 -m venv venv || {
+    print_error "Не удалось создать виртуальное окружение. Проверьте, установлен ли python3-venv."
+    exit 1
+}
+
+source venv/bin/activate || {
+    print_error "Не удалось активировать виртуальное окружение."
+    exit 1
+}
+
+pip install --upgrade pip || {
+    print_error "Не удалось обновить pip."
+    exit 1
+}
+
+pip install -r requirements.txt || {
+    print_error "Не удалось установить зависимости из requirements.txt."
+    exit 1
+}
 
 # Создание файла окружения
 print_message "Создание файла окружения (.env)..."
