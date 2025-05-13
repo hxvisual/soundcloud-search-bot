@@ -1,0 +1,53 @@
+name: Deploy HX Music Bot
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8
+    
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    
+    - name: Add host key
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+    
+    - name: Deploy to VPS
+      run: |
+        git push --force git@${{ secrets.VPS_HOST }}:/opt/soundcloud-search-bot-bare main
+        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "cd /opt/soundcloud-search-bot && source venv/bin/activate && pip install -r requirements.txt"
+    
+    - name: Notify of deployment
+      if: success()
+      run: |
+        echo "Bot deployed successfully to server! 🎉" 
